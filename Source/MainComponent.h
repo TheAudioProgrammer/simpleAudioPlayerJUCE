@@ -15,7 +15,8 @@
     This component lives inside our window, and this is where you should put all
     your controls and content.
 */
-class MainComponent   : public AudioAppComponent
+class MainComponent   : public AudioAppComponent,
+                        public ChangeListener
 {
 public:
     //==============================================================================
@@ -32,12 +33,30 @@ public:
     void resized() override;
 
 private:
+    enum TransportState
+    {
+        Stopped,
+        Starting,
+        Stopping,
+        Playing
+    };
+    
+    TransportState state;
+    
     void openButtonClicked();
+    
+    void playButtonClicked();
+    void stopButtonClicked();
+    void transportStateChanged(TransportState newState);
+    void changeListenerCallback (ChangeBroadcaster *source) override;
     
     AudioFormatManager formatManager;
     std::unique_ptr<AudioFormatReaderSource> playSource;
+    AudioTransportSource transport;
     
     TextButton openButton;
+    TextButton playButton;
+    TextButton stopButton;
     
     
     //==============================================================================

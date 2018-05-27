@@ -10,16 +10,26 @@
 
 
 //==============================================================================
-MainComponent::MainComponent() : openButton("Open")
+MainComponent::MainComponent() : state(Stopped), openButton("Open"), playButton("Play"), stopButton("Stop")
 {
-    setSize (200, 100);
+    setSize (200, 150);
     setAudioChannels (0, 2);
     
     openButton.onClick = [this] {  openButtonClicked(); };
     addAndMakeVisible(&openButton);
     
-    formatManager.registerBasicFormats();
+    playButton.onClick = [this] { playButtonClicked(); };
+    playButton.setColour(TextButton::buttonColourId, Colours::green);
+    playButton.setEnabled(true);
+    addAndMakeVisible(&playButton);
     
+    stopButton.onClick = [this] { stopButtonClicked(); };
+    stopButton.setColour(TextButton::buttonColourId, Colours::red);
+    stopButton.setEnabled(false);
+    addAndMakeVisible(&stopButton);
+    
+    formatManager.registerBasicFormats();
+    transport.addChangeListener(this);
 }
 
 MainComponent::~MainComponent()
@@ -31,19 +41,13 @@ MainComponent::~MainComponent()
 //==============================================================================
 void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
-    // This function will be called when the audio device is started, or when
-    // its settings (i.e. sample rate, block size, etc) are changed.
-
-    // You can use this function to initialise any resources you might need,
-    // but be careful - it will be called on the audio thread, not the GUI thread.
-
-    // For more details, see the help for AudioProcessor::prepareToPlay()
+    transport.prepareToPlay(samplesPerBlockExpected, sampleRate);
 }
 
 void MainComponent::openButtonClicked()
 {
     //choose a file
-    FileChooser chooser ("Choose a Wav or AIFF File", File::getSpecialLocation(File::userDesktopDirectory), "*.wav");
+    FileChooser chooser ("Choose a Wav or AIFF File", File::getSpecialLocation(File::userDesktopDirectory), "*.wav; *.mp3");
     
     //if the user chooses a file
     if (chooser.browseForFileToOpen())
@@ -56,24 +60,80 @@ void MainComponent::openButtonClicked()
         //read the file
         AudioFormatReader* reader = formatManager.createReaderFor(myFile);
         
-        //get the file ready to play
-        std::unique_ptr<AudioFormatReaderSource> tempSource (new AudioFormatReaderSource (reader, true));
+        if (reader != nullptr)
+        {
+            //get the file ready to play
+            std::unique_ptr<AudioFormatReaderSource> tempSource (new AudioFormatReaderSource (reader, true));
         
-        playSource.reset(tempSource.release());
+            transport.setSource(tempSource.get());
+            transportStateChanged(Stopped);
         
-        DBG(reader->getFormatName());
+            playSource.reset(tempSource.release());
+        }
+    }
+}
+
+void MainComponent::playButtonClicked()
+{
+    transportStateChanged(Starting);
+}
+
+void MainComponent::stopButtonClicked()
+{
+    transportStateChanged(Stopping);
+}
+
+void MainComponent::transportStateChanged(TransportState newState)
+{
+    if (newState != state)
+    {
+        state = newState;
+        
+        switch (state) {
+            case Stopped:
+                playButton.setEnabled(true);
+                transport.setPosition(0.0);
+                break;
+                
+            case Playing:
+                playButton.setEnabled(true);
+                break;
+                
+            case Starting:
+                stopButton.setEnabled(true);
+                playButton.setEnabled(false);
+                transport.start();
+                break;
+                
+            case Stopping:
+                playButton.setEnabled(true);
+                stopButton.setEnabled(false);
+                transport.stop();
+                break;
+        }
+    }
+}
+
+void MainComponent::changeListenerCallback (ChangeBroadcaster *source)
+{
+    if (source == &transport)
+    {
+        if (transport.isPlaying())
+        {
+            transportStateChanged(Playing);
+        }
+        else
+        {
+            transportStateChanged(Stopped);
+        }
     }
 }
 
 void MainComponent::getNextAudioBlock (const AudioSourceChannelInfo& bufferToFill)
 {
-    // Your audio-processing code goes here!
-
-    // For more details, see the help for AudioProcessor::getNextAudioBlock()
-
-    // Right now we are not producing any data, in which case we need to clear the buffer
-    // (to prevent the output of random noise)
     bufferToFill.clearActiveBufferRegion();
+    
+    transport.getNextAudioBlock(bufferToFill);
 }
 
 void MainComponent::releaseResources()
@@ -96,5 +156,6 @@ void MainComponent::paint (Graphics& g)
 void MainComponent::resized()
 {
     openButton.setBounds(10, 10, getWidth() - 20, 30);
-    
+    playButton.setBounds(10, 50, getWidth() - 20, 30);
+    stopButton.setBounds(10, 90, getWidth() - 20, 30);
 }
