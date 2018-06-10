@@ -33,6 +33,9 @@ public:
     void resized() override;
 
 private:
+    AudioDeviceManager otherDeviceManager;
+    std::unique_ptr <AudioDeviceSelectorComponent> audioSettings;
+    
     enum TransportState
     {
         Stopped,
@@ -58,10 +61,8 @@ private:
     TextButton playButton;
     TextButton stopButton;
     
-    
     //==============================================================================
     // Your private member variables go here...
-
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };
